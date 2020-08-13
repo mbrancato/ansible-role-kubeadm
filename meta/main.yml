@@ -1,0 +1,24 @@
+galaxy_info:
+  role_name: kubeadm
+  author: Mike Brancato
+  description: Install and upgrade Kubernetes clusters with kubeadm
+  license: Apache 2.0
+  min_ansible_version: 2.9
+
+  platforms:
+    - name: EL
+      versions:
+        - 7
+
+    - name: Ubuntu
+      versions:
+        - bionic
+
+    - name: Debian
+      versions:
+        - buster
+
+  galaxy_tags:
+    - kubeadm
+    - kubernetes
+    - k8s

@@ -1,0 +1,5 @@
+kube_version: "1.18.1"
+kube_cgroup_driver: "systemd" # systemd or cgroupfs
+kube_container_runtime: "containerd"
+kube_custom_cni: no
+kube_systemd_directory: /etc/systemd/system

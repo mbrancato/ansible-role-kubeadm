@@ -1,0 +1,13 @@
+---
+apiVersion: kubeadm.k8s.io/v1beta2
+kind: ClusterConfiguration
+kubernetesVersion: v1.18.0
+controlPlaneEndpoint: "127.0.0.1:7443"
+etcd:
+  extraArgs:
+    heartbeat-interval: 100
+    election-timeout: 1000
+---
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+cgroupDriver: {{ kube_cgroup_driver }}

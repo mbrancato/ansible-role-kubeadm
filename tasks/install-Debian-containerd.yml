@@ -1,0 +1,69 @@
+- name: Ensure modules are configured
+  copy:
+    content: |-
+      overlay
+      br_netfilter
+    dest: /etc/modules-load.d/containerd.conf
+    mode: '0644'
+
+- name: Ensure modules are loaded
+  modprobe:
+    name: "{{ item }}"
+    state: present
+  with_items:
+    - overlay
+    - br_netfilter
+
+- name: Ensure CRI sysctl is configured
+  sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_set: yes
+    state: present
+    reload: yes
+  with_items:
+    - key: net.bridge.bridge-nf-call-iptables
+      value: 1
+    - key: net.ipv4.ip_forward
+      value: 1
+    - key: net.bridge.bridge-nf-call-ip6tables
+      value: 1
+
+- name: Add Docker Apt repo key
+  apt_key:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    state: present
+
+- name: Get lsb_release
+  shell: lsb_release -cs
+  register: lsb_release
+  changed_when: no
+
+- name: Add Docker to Apt repo
+  copy:
+    content: >-
+      deb [arch=amd64] https://download.docker.com/linux/{{ ansible_facts["distribution"] | lower }} {{ lsb_release.stdout_lines[0] }} stable
+    dest: /etc/apt/sources.list.d/docker.list
+    mode: '0644'
+
+- name: Install containerd
+  apt:
+    update_cache: yes
+    name:
+      - containerd.io
+    state: present
+  register: install_containerd
+
+- name: Create containerd config
+  template:
+    src: containerd.config.toml.j2
+    dest: /etc/containerd/config.toml
+    mode: '0644'
+  register: containerd_config
+
+- name: Restart containerd
+  systemd:
+    state: restarted
+    daemon_reload: yes
+    name: containerd
+  when: containerd_config.changed

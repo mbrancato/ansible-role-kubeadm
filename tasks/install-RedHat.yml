@@ -1,0 +1,41 @@
+---
+- name: Install required packages
+  package:
+    name:
+      - chrony
+    state: present
+
+- name: Disable timesyncd
+  shell: timedatectl set-ntp no
+  ignore_errors: yes
+  tags:
+    - notest
+
+- name: Remove time servers
+  lineinfile:
+    path: /etc/chrony.conf
+    state: absent
+    regexp: '^([\s]*)(server|pool)'
+  notify: restart chrony
+
+- name: Create chrony.d
+  file:
+    path: /etc/chrony.d
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Include config files
+  lineinfile:
+    path: /etc/chrony.conf
+    line: include /etc/chrony.d/*.conf
+  notify: restart chrony
+
+- name: Add time servers
+  template:
+    src: google.conf
+    dest: /etc/chrony.d/google.conf
+  notify: restart chrony
+
+- meta: flush_handlers

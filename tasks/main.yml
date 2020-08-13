@@ -1,0 +1,129 @@
+---
+- name: Turn off swap
+  shell: swapoff -a
+  changed_when: no
+
+- name: Disable swap
+  replace:
+    path: /etc/fstab
+    regexp: '^([^#].*?\sswap\s+sw\s+.*)$'
+    replace: '# \1'
+
+- include_tasks: "install-{{ ansible_facts.os_family }}.yml"
+
+- name: Create kubelet config snippet
+  template:
+    src: kubeadm-config.yaml.j2
+    dest: /tmp/kubeadm-config.yaml
+    mode: '0644'
+
+- name: Check kubelet status
+  stat:
+    path: /etc/kubernetes/kubelet.conf
+  register: kubelet_config_stat
+
+- name: Initialize first cluster node
+  shell: kubeadm init --upload-certs --config=/tmp/kubeadm-config.yaml
+  when:
+    - not kubelet_config_stat.stat.exists
+    - inventory_hostname == play_hosts[0]
+
+# Figure out a way to conditionally do these next two steps
+- name: Get certificate-key for joining additional control-plane nodes
+  shell: kubeadm init phase upload-certs --upload-certs
+  register: kube_certificate_key
+  when:
+    - inventory_hostname == play_hosts[0]
+  changed_when: no
+
+- name: Get join command
+  shell: kubeadm token create --print-join-command --certificate-key $KUBE_CERT_KEY
+  register: kube_join_cmd
+  when:
+    - inventory_hostname == play_hosts[0]
+  environment:
+    KUBE_CERT_KEY: "{{ kube_certificate_key.stdout_lines[-1] }}"
+  changed_when: no
+
+- name: Join remaining cluster nodes
+  shell: "{{ hostvars[play_hosts[0]]['kube_join_cmd']['stdout_lines'][0] }}"
+  when:
+    - not kubelet_config_stat.stat.exists
+    - inventory_hostname != play_hosts[0]
+
+- name: Get etcd certificates
+  shell: cat {{ item }} | base64 -w 0
+  with_items:
+    - /etc/kubernetes/pki/etcd/ca.crt
+    - /etc/kubernetes/pki/etcd/server.crt
+    - /etc/kubernetes/pki/etcd/server.key
+  when:
+    - inventory_hostname == play_hosts[0]
+  register: kube_etcd_certs
+  changed_when: no
+
+- name: Check if Calico is already installed
+  shell: kubectl --kubeconfig /etc/kubernetes/admin.conf --namespace kube-system get ds calico-node
+  register: kube_calico_check
+  ignore_errors: yes
+  when:
+    - inventory_hostname == play_hosts[0]
+  changed_when: no
+
+- name: Create temporary directory for Calico
+  tempfile:
+    state: directory
+    suffix: calico
+  register: kube_calico_temp
+  when:
+    - inventory_hostname == play_hosts[0]
+    - kube_calico_check.failed
+
+- name: Create Calico manifest
+  vars:
+    kube_etcd_endpoints: >-
+      {{
+        ["https://"]
+        |product(play_hosts)
+        |map("join")
+        |list
+        |product([":2379"])
+        |map("join")
+        |list
+        | join(",")
+      }}
+  template:
+    src: calico.yaml.j2
+    dest: "{{ kube_calico_temp.path }}/calico.yaml"
+  when:
+    - inventory_hostname == play_hosts[0]
+    - kube_calico_check.failed
+
+- name: Install Calico
+  shell: kubectl --kubeconfig /etc/kubernetes/admin.conf apply -f "{{ kube_calico_temp.path }}/calico.yaml"
+  when:
+    - inventory_hostname == play_hosts[0]
+    - kube_calico_check.failed
+
+- name: Install CNI DHCP daemon service and socket files
+  copy:
+    src: "{{ item }}"
+    dest: "{{ kube_systemd_directory }}/"
+  with_items:
+    - cni-dhcp.socket
+    - cni-dhcp.service
+  register: kube_cni_dhcp_copy
+  when: kube_custom_cni | bool
+
+- name: Enable CNI DHCP daemon on nodes
+  systemd:
+    name: cni-dhcp
+    daemon_reload: yes
+    state: started
+    enabled: yes
+  when:
+    - kube_custom_cni | bool
+    - kube_cni_dhcp_copy.changed
+  register: kube_enable_cni_dhcp
+  until: kube_enable_cni_dhcp is not failed
+  retries: 5
