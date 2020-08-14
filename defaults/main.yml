@@ -3,3 +3,4 @@ kube_cgroup_driver: "systemd" # systemd or cgroupfs
 kube_container_runtime: "containerd"
 kube_custom_cni: no
 kube_systemd_directory: /etc/systemd/system
+kube_schedule_control_plane: yes

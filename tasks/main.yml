@@ -11,11 +11,13 @@
 
 - include_tasks: "install-{{ ansible_facts.os_family }}.yml"
 
-- name: Create kubelet config snippet
+- name: Create Kubeadm config snippet
   template:
     src: kubeadm-config.yaml.j2
     dest: /tmp/kubeadm-config.yaml
     mode: '0644'
+  when:
+    - inventory_hostname == play_hosts[0]
 
 - name: Check kubelet status
   stat:
@@ -50,6 +52,14 @@
   when:
     - not kubelet_config_stat.stat.exists
     - inventory_hostname != play_hosts[0]
+
+- name: Remove taints from control plane nodes
+  shell: kubectl --kubeconfig /etc/kubernetes/admin.conf taint nodes --all node-role.kubernetes.io/master-
+  when:
+    - inventory_hostname == play_hosts[0]
+    - kube_schedule_control_plane | bool
+  changed_when: no
+  ignore_errors: yes
 
 - name: Get etcd certificates
   shell: cat {{ item }} | base64 -w 0
