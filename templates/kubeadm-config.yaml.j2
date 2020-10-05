@@ -7,7 +7,28 @@ etcd:
   extraArgs:
     heartbeat-interval: 100
     election-timeout: 1000
+apiServer:
+  certSANs:
+{% for host in play_hosts %}
+  - "{{ hostvars[host]['ansible_host']}}"
+{% endfor %}
+controllerManager:
+  extraArgs:
+    node-monitor-period: '2s'
+    node-monitor-grace-period: '16s'
+    pod-eviction-timeout: '30s'
+kube-api:
+  extra_args:
+    default-not-ready-toleration-seconds: 30
+    default-unreachable-toleration-seconds: 30
 ---
 apiVersion: kubelet.config.k8s.io/v1beta1
 kind: KubeletConfiguration
 cgroupDriver: {{ kube_cgroup_driver }}
+nodeStatusUpdateFrequency: '4s'
+---
+apiVersion: kubeproxy.config.k8s.io/v1alpha1
+kind: KubeProxyConfiguration
+mode: "ipvs"
+ipvs:
+  strictARP: true

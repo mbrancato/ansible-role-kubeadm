@@ -8,6 +8,7 @@
       - gnupg2
       - ca-certificates
       - software-properties-common
+      - open-iscsi
     state: present
 
 - name: Add Kubernetes Apt repo key

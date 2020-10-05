@@ -1,0 +1,12 @@
+---
+apiVersion: kubeadm.k8s.io/v1beta2
+kind: InitConfiguration
+nodeRegistration:
+  name: "{{ inventory_hostname }}"
+  taints:
+  - key: "kubeadmNode"
+    value: "controlplane"
+    effect: "true"
+  - key: "kubeadmNode"
+    value: "worker"
+    effect: "true"
