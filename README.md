@@ -8,7 +8,11 @@ with CNI and other settings, however, currently this isn't implemented.
 
 In its current state, this role is incomplete and opinionated. This includes
 only targeting small clusters with a distributed control plane nodes, and the
-use of the Calico CNI plugin. In the future, suport will be added to have separate control-plane and worker nodes
+use of the Calico CNI plugin. In the future, support could be added to have
+separate control-plane and worker nodes
+
+This role has only been tested with Debian and would need tasks to install
+required software on RedHat, CentOS, and others.
 
 ## Requirements
 
